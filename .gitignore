@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+
+# Рантайм-данные: БД, сгенерированные конфиги sing-box, TLS-сертификаты
+data/
+server/data/
+
+.DS_Store
+.vscode/
+.idea/
+coverage/
+*.tsbuildinfo
+.serena/

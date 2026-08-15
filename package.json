@@ -1,0 +1,28 @@
+{
+  "name": "vpn-to-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Превращает VPN-подписки (VLESS/Trojan/Shadowsocks/VMess) в набор SOCKS5/HTTP/HTTPS прокси с веб-панелью",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n api,web -c blue,magenta \"npm:dev:server\" \"npm:dev:web\"",
+    "dev:server": "npm run dev --workspace=@vpn-to-proxy/server",
+    "dev:web": "npm run dev --workspace=@vpn-to-proxy/web",
+    "build": "npm run build --workspace=@vpn-to-proxy/web && npm run build --workspace=@vpn-to-proxy/server",
+    "start": "npm run start --workspace=@vpn-to-proxy/server",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "db:generate": "npm run db:generate --workspace=@vpn-to-proxy/server"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
+  }
+}

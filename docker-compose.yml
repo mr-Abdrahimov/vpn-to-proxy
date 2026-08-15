@@ -1,0 +1,69 @@
+name: vtp
+
+services:
+  mongo:
+    image: mongo:7
+    container_name: vtp-mongo
+    restart: unless-stopped
+    # Кэш WiredTiger по умолчанию забирает половину памяти машины.
+    # На небольшом VPS это приводит к OOM, поэтому ограничиваем явно.
+    command: ['--wiredTigerCacheSizeGB', '0.25']
+    ports:
+      # Только на localhost: наружу база не смотрит никогда.
+      - '127.0.0.1:${MONGO_PORT:-27117}:27017'
+    volumes:
+      - mongo-data:/data/db
+    mem_limit: 640m
+    healthcheck:
+      test: ['CMD', 'mongosh', '--quiet', '--eval', "db.adminCommand('ping').ok"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+  app:
+    build:
+      context: .
+    image: vpn-to-proxy:latest
+    container_name: vtp-app
+    restart: unless-stopped
+    # Диапазон прокси-портов измеряется тысячами. Публиковать их через
+    # обычный bridge нельзя: Docker поднимает по userland-прокси на порт
+    # и мгновенно съедает всю память. В host-режиме sing-box слушает
+    # порты напрямую, без посредников.
+    network_mode: host
+    env_file: .env
+    volumes:
+      - ./data:/data
+      # Сертификаты Let's Encrypt с хоста: HTTPS-прокси отдают настоящий
+      # сертификат домена, и клиентам не нужно доверять самоподписанному CA.
+      # Каталог может отсутствовать — тогда используется режим self-signed.
+      - /etc/letsencrypt:/etc/letsencrypt:ro
+    depends_on:
+      mongo:
+        condition: service_healthy
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    logging:
+      driver: json-file
+      options:
+        max-size: '10m'
+        max-file: '3'
+
+volumes:
+  mongo-data:
