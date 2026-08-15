@@ -52,10 +52,14 @@ export interface VpnNode {
 export interface Subscription {
   id: string;
   name: string;
+  /** Справочная заметка «где куплено». В запросах не участвует. */
+  source: string | null;
   sourceType: 'url' | 'raw';
   url: string | null;
-  /** Дополнительные HTTP-заголовки запроса (x-hwid и подобные). */
-  headers: Record<string, string>;
+  /** Пусто — берётся значение по умолчанию из настроек. */
+  userAgent: string | null;
+  /** Уходит в заголовок x-hwid. */
+  hwid: string | null;
   detectedFormat: string | null;
   enabled: boolean;
   autoRefresh: boolean;
@@ -93,6 +97,7 @@ export interface Settings {
   subscriptionRefreshMinutes: number;
   subscriptionUserAgent: string;
   subscriptionHwid: string;
+  subscriptionTimeoutMs: number;
   healthcheckMinutes: number;
   healthcheckUrl: string;
   healthcheckConcurrency: number;
@@ -212,10 +217,12 @@ export const api = {
     list: () => get<{ subscriptions: Subscription[] }>('/subscriptions'),
     create: (input: {
       name: string;
+      source?: string;
       sourceType: 'url' | 'raw';
       url?: string;
       rawContent?: string;
-      headers?: Record<string, string>;
+      userAgent?: string;
+      hwid?: string;
       autoRefresh?: boolean;
       refreshIntervalMinutes?: number;
     }) => post<{ id: string; report: RefreshReport }>('/subscriptions', input),
@@ -253,10 +260,14 @@ export const api = {
     regenerate: (id: string) => post<{ proxy: Proxy | null }>(`/proxies/${id}/regenerate`),
     remove: (id: string) => del<{ deleted: number }>(`/proxies/${id}`),
     bulk: (ids: string[], action: 'enable' | 'disable' | 'delete' | 'regenerate' | 'check') =>
-      post<{ updated?: number; deleted?: number; summary?: { checked: number; ok: number; failed: number } }>(
-        '/proxies/bulk',
-        { ids, action },
-      ),
+      post<{
+        updated?: number;
+        deleted?: number;
+        summary?: { checked: number; ok: number; failed: number };
+        /** Большие прогоны проверки уходят в фон — итога в ответе не будет. */
+        started?: boolean;
+        total?: number;
+      }>('/proxies/bulk', { ids, action }),
     exportUrl: (params: {
       format: 'uri' | 'hostport' | 'json' | 'csv';
       subscriptionId?: string;
@@ -274,7 +285,11 @@ export const api = {
   },
 
   healthcheck: (ids?: string[]) =>
-    post<{ summary: { checked: number; ok: number; failed: number } }>('/healthcheck', ids ? { ids } : {}),
+    post<{
+      summary?: { checked: number; ok: number; failed: number };
+      started?: boolean;
+      total?: number;
+    }>('/healthcheck', ids ? { ids } : {}),
 
   settings: {
     get: () => get<{ settings: Settings; resolvedPublicHost: string }>('/settings'),

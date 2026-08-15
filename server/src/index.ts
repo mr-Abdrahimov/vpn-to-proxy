@@ -6,6 +6,7 @@ import { logger } from './lib/logger.js';
 import { startScheduler, stopScheduler } from './scheduler.js';
 import { bootstrapAdmin } from './services/auth.js';
 import { loadSettings } from './services/settings.js';
+import { migrateLegacyHeaders } from './services/subscriptions.js';
 import { syncSingBox } from './services/singbox-sync.js';
 
 /**
@@ -19,6 +20,7 @@ async function main(): Promise<void> {
   await connectDatabase(logger);
   await loadSettings();
   await bootstrapAdmin();
+  await migrateLegacyHeaders();
 
   await singbox.init();
 

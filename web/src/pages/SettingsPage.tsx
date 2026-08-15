@@ -15,13 +15,13 @@ export function SettingsPage({ user }: { user: User }) {
   const query = useQuery({ queryKey: ['settings'], queryFn: api.settings.get });
   const [draft, setDraft] = useState<Settings | null>(null);
   const [tlsKeyInput, setTlsKeyInput] = useState('');
-  const [loadedAt, setLoadedAt] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
-  // Черновик инициализируем один раз на загрузку, иначе ввод «прыгал» бы
-  // при каждом фоновом обновлении запроса.
-  if (query.data && loadedAt === null) {
+  // Черновик инициализируем один раз, иначе ввод «прыгал» бы при каждом
+  // фоновом обновлении запроса.
+  if (query.data && !loaded) {
     setDraft(query.data.settings);
-    setLoadedAt(new Date().toISOString());
+    setLoaded(true);
   }
 
   const save = useMutation({
@@ -54,8 +54,9 @@ export function SettingsPage({ user }: { user: User }) {
     setDraft((current) => (current ? { ...current, [key]: value } : current));
 
   const toggleKind = (kind: ProxyKind) => {
-    const has = draft.defaultProxyKinds.includes(kind);
-    const next = has ? draft.defaultProxyKinds.filter((item) => item !== kind) : [...draft.defaultProxyKinds, kind];
+    const next = draft.defaultProxyKinds.includes(kind)
+      ? draft.defaultProxyKinds.filter((item) => item !== kind)
+      : [...draft.defaultProxyKinds, kind];
     if (next.length > 0) patch('defaultProxyKinds', next);
   };
 
@@ -63,9 +64,9 @@ export function SettingsPage({ user }: { user: User }) {
     <div className="max-w-3xl space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-ink-100">Настройки</h1>
-          <p className="mt-0.5 text-sm text-ink-500">
-            Внешний адрес определён как <span className="font-mono text-ink-300">{query.data?.resolvedPublicHost}</span>
+          <h1 className="text-xl font-semibold">Настройки</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Внешний адрес определён как <span className="font-mono text-foreground">{query.data?.resolvedPublicHost}</span>
           </p>
         </div>
         <Button variant="primary" icon={<Save className="size-4" />} onClick={() => save.mutate()} loading={save.isPending}>
@@ -79,11 +80,22 @@ export function SettingsPage({ user }: { user: User }) {
             label="Публичный хост"
             hint="Подставляется в выдаваемые строки подключения. Пусто — панель определит внешний IP сама."
           >
-            <Input value={draft.publicHost} onChange={(event) => patch('publicHost', event.target.value)} placeholder="например, vtp.avtlk.ru" />
+            <Input
+              value={draft.publicHost}
+              onChange={(event) => patch('publicHost', event.target.value)}
+              placeholder="например, vtp.avtlk.ru"
+            />
           </Field>
 
-          <Field label="Интерфейс прослушивания" hint="0.0.0.0 — прокси доступны снаружи; 127.0.0.1 — только с самого сервера.">
-            <Input value={draft.proxyListen} onChange={(event) => patch('proxyListen', event.target.value)} className="font-mono text-xs" />
+          <Field
+            label="Интерфейс прослушивания"
+            hint="0.0.0.0 — прокси доступны снаружи; 127.0.0.1 — только с самого сервера."
+          >
+            <Input
+              value={draft.proxyListen}
+              onChange={(event) => patch('proxyListen', event.target.value)}
+              className="font-mono text-xs"
+            />
           </Field>
 
           <div className="grid gap-4 sm:grid-cols-2">
@@ -115,7 +127,7 @@ export function SettingsPage({ user }: { user: User }) {
                 />
               ))}
             </div>
-            <p className="mt-1.5 text-xs text-ink-500">
+            <p className="mt-1.5 text-xs text-muted-foreground">
               Каждый вид занимает отдельный порт. Три вида на 300 коннектов — это 900 портов.
             </p>
           </div>
@@ -146,13 +158,29 @@ export function SettingsPage({ user }: { user: User }) {
             />
           </Field>
 
-          <Field label="Автообновление подписок, минут" hint="0 — выключить автообновление.">
-            <Input
-              type="number"
-              value={draft.subscriptionRefreshMinutes}
-              onChange={(event) => patch('subscriptionRefreshMinutes', Number(event.target.value))}
-            />
-          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Автообновление, минут" hint="0 — выключить автообновление.">
+              <Input
+                type="number"
+                value={draft.subscriptionRefreshMinutes}
+                onChange={(event) => patch('subscriptionRefreshMinutes', Number(event.target.value))}
+              />
+            </Field>
+
+            <Field
+              label="Таймаут подключения, мс"
+              hint="Сколько ждать ответа от сервера подписки. Большие списки отдаются медленно — 30 000 обычно достаточно."
+            >
+              <Input
+                type="number"
+                min={2000}
+                max={300000}
+                step={1000}
+                value={draft.subscriptionTimeoutMs}
+                onChange={(event) => patch('subscriptionTimeoutMs', Number(event.target.value))}
+              />
+            </Field>
+          </div>
         </div>
       </Card>
 
@@ -182,7 +210,7 @@ export function SettingsPage({ user }: { user: User }) {
                 onChange={(event) => patch('healthcheckConcurrency', Number(event.target.value))}
               />
             </Field>
-            <Field label="Таймаут, мс">
+            <Field label="Таймаут проверки, мс">
               <Input
                 type="number"
                 value={draft.healthcheckTimeoutMs}
@@ -201,15 +229,19 @@ export function SettingsPage({ user }: { user: User }) {
               draft.tlsMode === 'self-signed'
                 ? 'Панель выпускает собственный CA. Скачай его и добавь в доверенные — тогда HTTPS-прокси работает без отключения проверки сертификата.'
                 : draft.tlsMode === 'files'
-                  ? 'Сертификат читается с диска и обновляется снаружи — например, certbot’ом. После продления нужно перезапустить ядро.'
+                  ? 'Сертификат читается с диска и обновляется снаружи, например certbot’ом. После продления ядро перезапускается автоматически.'
                   : 'Сертификат и ключ вставлены сюда вручную.'
             }
           >
-            <Select value={draft.tlsMode} onChange={(event) => patch('tlsMode', event.target.value as Settings['tlsMode'])}>
-              <option value="self-signed">Самоподписанный (свой CA)</option>
-              <option value="files">Файлы на диске (Let’s Encrypt)</option>
-              <option value="custom">Вставить PEM вручную</option>
-            </Select>
+            <Select
+              value={draft.tlsMode}
+              onValueChange={(value) => patch('tlsMode', value as Settings['tlsMode'])}
+              items={[
+                { value: 'self-signed', label: 'Самоподписанный (свой CA)' },
+                { value: 'files', label: 'Файлы на диске (Let’s Encrypt)' },
+                { value: 'custom', label: 'Вставить PEM вручную' },
+              ]}
+            />
           </Field>
 
           {draft.tlsMode === 'files' ? (
@@ -273,14 +305,12 @@ export function SettingsPage({ user }: { user: User }) {
           <Field label="Уровень логов sing-box">
             <Select
               value={draft.singboxLogLevel}
-              onChange={(event) => patch('singboxLogLevel', event.target.value)}
-            >
-              {['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </Select>
+              onValueChange={(value) => patch('singboxLogLevel', value)}
+              items={['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].map((level) => ({
+                value: level,
+                label: level,
+              }))}
+            />
           </Field>
         </div>
       </Card>

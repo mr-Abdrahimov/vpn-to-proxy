@@ -128,7 +128,11 @@ function issueSelfSigned(sans: string[]): void {
   cert.validity.notBefore = new Date(Date.now() - 60_000); // запас на рассинхрон часов
   cert.validity.notAfter = new Date(Date.now() + LEAF_VALIDITY_DAYS * 24 * 60 * 60 * 1000);
 
-  const commonName = sans.find((name) => !isIpLiteral(name)) ?? 'localhost';
+  // CN современными клиентами не проверяется — решает SAN, — но именно CN
+  // видно в выводе openssl и в диалогах браузера, поэтому ставим туда то имя,
+  // по которому к прокси реально обращаются.
+  const configuredName = getSettings().tlsCommonName.trim();
+  const commonName = configuredName || sans.find((name) => !isIpLiteral(name)) || sans[0] || 'localhost';
   cert.setSubject([{ name: 'commonName', value: commonName }]);
   cert.setIssuer(ca.cert.subject.attributes);
   cert.setExtensions([

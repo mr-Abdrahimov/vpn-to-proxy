@@ -1,8 +1,10 @@
+import type { ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, AlertTriangle, Cable, RefreshCw, RotateCw, Server, Zap } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { cn } from '../lib/cn';
 import { api } from '../lib/api';
-import { formatRelative, plural } from '../lib/format';
+import { formatRelative } from '../lib/format';
 import { Badge, Button, Card, Spinner } from '../components/ui';
 import { errorText, useToast } from '../components/toast';
 
@@ -17,7 +19,7 @@ export function DashboardPage() {
     mutationFn: api.system.sync,
     onSuccess: (data) => {
       if (data.result.error) toast.error('Синхронизация не удалась', data.result.error);
-      else toast.success(`Конфигурация применена: ${data.result.bindings} ${plural(data.result.bindings, 'прокси', 'прокси', 'прокси')}`);
+      else toast.success(`Конфигурация применена: ${data.result.bindings} прокси`);
       void queryClient.invalidateQueries({ queryKey: ['system-status'] });
     },
     onError: (error) => toast.error('Ошибка', errorText(error)),
@@ -34,8 +36,15 @@ export function DashboardPage() {
 
   const check = useMutation({
     mutationFn: () => api.healthcheck(),
-    onSuccess: (data) =>
-      toast.success('Проверка завершена', `Работают ${data.summary.ok} из ${data.summary.checked}`),
+    onSuccess: (data) => {
+      if (data.summary) {
+        toast.success('Проверка завершена', `Работают ${data.summary.ok} из ${data.summary.checked}`);
+      } else {
+        // Большой прогон ушёл в фон — итог появится в счётчиках на этой же странице.
+        toast.info('Проверка запущена', `Прокси в очереди: ${data.total ?? 0}. Счётчики обновятся по ходу проверки.`);
+      }
+      void queryClient.invalidateQueries({ queryKey: ['system-status'] });
+    },
     onError: (error) => toast.error('Проверка не удалась', errorText(error)),
   });
 
@@ -48,20 +57,19 @@ export function DashboardPage() {
   }
 
   if (status.isError || !status.data) {
-    return <p className="text-sm text-bad-400">Не удалось получить статус: {errorText(status.error)}</p>;
+    return <p className="text-sm text-danger">Не удалось получить статус: {errorText(status.error)}</p>;
   }
 
   const { counts, singbox, syncError, portRange, publicHost } = status.data;
-  const usedPorts = counts.proxies;
   const totalPorts = portRange.end - portRange.start + 1;
 
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-ink-100">Обзор</h1>
-          <p className="mt-0.5 text-sm text-ink-500">
-            Прокси раздаются на <span className="font-mono text-ink-300">{publicHost}</span>
+          <h1 className="text-xl font-semibold">Обзор</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Прокси раздаются на <span className="font-mono text-foreground">{publicHost}</span>
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -84,14 +92,14 @@ export function DashboardPage() {
       </header>
 
       {syncError ? (
-        <div className="rounded-xl border border-bad-500/30 bg-bad-500/8 p-4">
+        <div className="rounded-lg border border-danger/30 bg-danger-surface p-4">
           <div className="flex items-start gap-2.5">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-bad-400" />
+            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-danger" />
             <div className="min-w-0">
-              <p className="text-sm font-medium text-bad-400">Конфигурация не применена</p>
-              <p className="mt-1 text-sm text-ink-300">{syncError.message}</p>
+              <p className="text-sm font-medium text-danger">Конфигурация не применена</p>
+              <p className="mt-1 text-sm">{syncError.message}</p>
               {syncError.output ? (
-                <pre className="mt-2 max-h-40 overflow-auto rounded-lg bg-ink-950 p-2.5 font-mono text-[11px] leading-relaxed text-ink-400">
+                <pre className="mt-2 max-h-40 overflow-auto rounded-md bg-background p-2.5 font-mono text-[11px] leading-relaxed text-muted-foreground">
                   {syncError.output}
                 </pre>
               ) : null}
@@ -105,7 +113,11 @@ export function DashboardPage() {
           icon={<Cable className="size-4" />}
           label="Подписки"
           value={counts.subscriptions}
-          hint={<Link to="/subscriptions" className="text-brand-400 hover:underline">управлять</Link>}
+          hint={
+            <Link to="/subscriptions" className="text-primary hover:underline">
+              управлять
+            </Link>
+          }
         />
         <Stat
           icon={<Server className="size-4" />}
@@ -114,7 +126,7 @@ export function DashboardPage() {
           hint={
             <>
               включено {counts.nodesEnabled}
-              {counts.nodesMissing > 0 ? <span className="text-warn-400"> · пропало {counts.nodesMissing}</span> : null}
+              {counts.nodesMissing > 0 ? <span className="text-warning"> · пропало {counts.nodesMissing}</span> : null}
             </>
           }
         />
@@ -124,19 +136,19 @@ export function DashboardPage() {
           value={counts.proxies}
           hint={
             <>
-              активно {counts.proxiesEnabled} · портов занято {usedPorts} из {totalPorts}
+              активно {counts.proxiesEnabled} · портов занято {counts.proxies} из {totalPorts}
             </>
           }
         />
         <Stat
           icon={<Zap className="size-4" />}
-          label="Проверка"
+          label="Работают"
           value={counts.proxiesOk}
           tone={counts.proxiesFail > 0 ? 'warn' : 'ok'}
           hint={
             <>
-              работают
-              {counts.proxiesFail > 0 ? <span className="text-bad-400"> · не отвечают {counts.proxiesFail}</span> : null}
+              из {counts.proxies}
+              {counts.proxiesFail > 0 ? <span className="text-danger"> · не отвечают {counts.proxiesFail}</span> : null}
             </>
           }
         />
@@ -144,7 +156,7 @@ export function DashboardPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card title="Ядро sing-box">
-          <dl className="divide-y divide-ink-850 text-sm">
+          <dl className="divide-y divide-border text-sm">
             <Row label="Состояние">
               <SingBoxBadge status={singbox.status} />
             </Row>
@@ -158,7 +170,7 @@ export function DashboardPage() {
             {singbox.restarts > 0 ? <Row label="Аварийных перезапусков">{singbox.restarts}</Row> : null}
             {singbox.lastError ? (
               <Row label="Ошибка">
-                <span className="text-bad-400">{singbox.lastError}</span>
+                <span className="text-danger">{singbox.lastError}</span>
               </Row>
             ) : null}
           </dl>
@@ -167,23 +179,24 @@ export function DashboardPage() {
         <Card
           title="Последние события"
           action={
-            <Link to="/logs" className="text-xs text-brand-400 hover:underline">
+            <Link to="/logs" className="text-xs text-primary hover:underline">
               весь журнал
             </Link>
           }
         >
           {events.data?.events.length ? (
-            <ul className="divide-y divide-ink-850">
+            <ul className="divide-y divide-border">
               {events.data.events.map((event) => (
                 <li key={event.id} className="flex gap-2.5 px-4 py-2.5">
                   <span
-                    className={`mt-1.5 size-1.5 shrink-0 rounded-full ${
-                      event.level === 'error' ? 'bg-bad-400' : event.level === 'warn' ? 'bg-warn-400' : 'bg-ink-600'
-                    }`}
+                    className={cn(
+                      'mt-1.5 size-1.5 shrink-0 rounded-full',
+                      event.level === 'error' ? 'bg-danger' : event.level === 'warn' ? 'bg-warning' : 'bg-muted-foreground',
+                    )}
                   />
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm leading-snug text-ink-200">{event.message}</p>
-                    <p className="mt-0.5 text-xs text-ink-600">
+                    <p className="text-sm leading-snug">{event.message}</p>
+                    <p className="mt-0.5 text-xs text-muted-foreground">
                       {event.source} · {formatRelative(event.createdAt)}
                     </p>
                   </div>
@@ -191,7 +204,7 @@ export function DashboardPage() {
               ))}
             </ul>
           ) : (
-            <p className="px-4 py-8 text-center text-sm text-ink-600">Событий пока нет</p>
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">Событий пока нет</p>
           )}
         </Card>
       </div>
@@ -206,35 +219,37 @@ function Stat({
   hint,
   tone = 'neutral',
 }: {
-  icon: React.ReactNode;
+  icon: ReactNode;
   label: string;
   value: number;
-  hint?: React.ReactNode;
+  hint?: ReactNode;
   tone?: 'neutral' | 'ok' | 'warn';
 }) {
   return (
-    <div className="card p-4">
-      <div className="flex items-center gap-2 text-ink-500">
+    <Card className="p-4">
+      <div className="flex items-center gap-2 text-muted-foreground">
         {icon}
         <span className="text-xs font-medium tracking-wide uppercase">{label}</span>
       </div>
       <p
-        className={`mt-2 text-2xl font-semibold tabular-nums ${
-          tone === 'ok' ? 'text-ok-400' : tone === 'warn' ? 'text-warn-400' : 'text-ink-100'
-        }`}
+        className={cn(
+          'mt-2 text-2xl font-semibold tabular-nums',
+          tone === 'ok' && 'text-success',
+          tone === 'warn' && 'text-warning',
+        )}
       >
         {value}
       </p>
-      {hint ? <p className="mt-1 text-xs text-ink-500">{hint}</p> : null}
-    </div>
+      {hint ? <p className="mt-1 text-xs text-muted-foreground">{hint}</p> : null}
+    </Card>
   );
 }
 
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 px-4 py-2.5">
-      <dt className="text-ink-500">{label}</dt>
-      <dd className="text-right text-ink-200">{children}</dd>
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className="text-right">{children}</dd>
     </div>
   );
 }

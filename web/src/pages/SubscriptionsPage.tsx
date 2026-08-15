@@ -3,7 +3,21 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cable, Pencil, Plus, RefreshCw, Trash2, TriangleAlert } from 'lucide-react';
 import { api, type RefreshReport, type Subscription } from '../lib/api';
 import { formatDuration, formatRelative, plural } from '../lib/format';
-import { Badge, Button, Card, Checkbox, ConfirmDialog, EmptyState, Field, Input, Modal, Spinner, Textarea, Toggle } from '../components/ui';
+import { cn } from '../lib/cn';
+import {
+  Badge,
+  Button,
+  Card,
+  Checkbox,
+  ConfirmDialog,
+  EmptyState,
+  Field,
+  Input,
+  Modal,
+  Spinner,
+  Textarea,
+  Toggle,
+} from '../components/ui';
 import { errorText, useToast } from '../components/toast';
 
 export function SubscriptionsPage() {
@@ -57,17 +71,14 @@ export function SubscriptionsPage() {
     setEditorOpen(true);
   };
 
-  const openEdit = (subscription: Subscription) => {
-    setEditing(subscription);
-    setEditorOpen(true);
-  };
-
   return (
     <div className="space-y-5">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-ink-100">Подписки</h1>
-          <p className="mt-0.5 text-sm text-ink-500">Источники VPN-коннектов, из которых собираются прокси</p>
+          <h1 className="text-xl font-semibold">Подписки</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">
+            Источники VPN-коннектов, из которых собираются прокси
+          </p>
         </div>
         <Button variant="primary" icon={<Plus className="size-4" />} onClick={openCreate}>
           Добавить подписку
@@ -89,7 +100,10 @@ export function SubscriptionsPage() {
               refreshing={refresh.isPending && refresh.variables === subscription.id}
               onRefresh={() => refresh.mutate(subscription.id)}
               onToggle={(enabled) => toggle.mutate({ id: subscription.id, enabled })}
-              onEdit={() => openEdit(subscription)}
+              onEdit={() => {
+                setEditing(subscription);
+                setEditorOpen(true);
+              }}
               onDelete={() => setDeleting(subscription)}
             />
           ))}
@@ -152,41 +166,45 @@ function SubscriptionCard({
   onEdit: () => void;
   onDelete: () => void;
 }) {
-  const headerCount = Object.keys(subscription.headers).length;
-
   return (
-    <div className="card p-4">
+    <Card className={cn('p-4', !subscription.enabled && 'opacity-70')}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-medium text-ink-100">{subscription.name}</h3>
+            <h3 className="font-medium">{subscription.name}</h3>
             <Badge tone={subscription.sourceType === 'url' ? 'brand' : 'neutral'}>
               {subscription.sourceType === 'url' ? 'по ссылке' : 'текст'}
             </Badge>
             {subscription.detectedFormat ? <Badge>{subscription.detectedFormat}</Badge> : null}
+            {subscription.hwid ? <Badge tone="brand">HWID</Badge> : null}
             {!subscription.enabled ? <Badge tone="warn">выключена</Badge> : null}
           </div>
 
+          {subscription.source ? (
+            <p className="mt-1 text-xs text-muted-foreground">
+              источник: <span className="text-foreground">{subscription.source}</span>
+            </p>
+          ) : null}
+
           {subscription.url ? (
-            <p className="mt-1.5 truncate font-mono text-xs text-ink-500" title={subscription.url}>
+            <p className="mt-1.5 truncate font-mono text-xs text-muted-foreground" title={subscription.url}>
               {subscription.url}
             </p>
           ) : null}
 
-          <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-500">
+          <div className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span>
-              коннектов: <span className="text-ink-300">{subscription.nodeCount}</span>
+              коннектов: <span className="text-foreground">{subscription.nodeCount}</span>
             </span>
             <span>обновлено {formatRelative(subscription.lastFetchedAt)}</span>
             <span>
               автообновление:{' '}
               {subscription.autoRefresh ? formatDuration(subscription.refreshIntervalMinutes) : 'выключено'}
             </span>
-            {headerCount > 0 ? <span>заголовков: {headerCount}</span> : null}
           </div>
 
           {subscription.lastError ? (
-            <p className="mt-2 flex items-start gap-1.5 text-xs text-bad-400">
+            <p className="mt-2 flex items-start gap-1.5 text-xs text-danger">
               <TriangleAlert className="mt-px size-3.5 shrink-0" />
               {subscription.lastError}
             </p>
@@ -198,15 +216,22 @@ function SubscriptionCard({
           <Button size="sm" icon={<RefreshCw className="size-3.5" />} onClick={onRefresh} loading={refreshing}>
             Обновить
           </Button>
-          <Button size="sm" variant="ghost" onClick={onEdit} title="Изменить" className="px-2">
+          <Button variant="ghost" size="icon" onClick={onEdit} title="Изменить" aria-label="Изменить">
             <Pencil className="size-3.5" />
           </Button>
-          <Button size="sm" variant="ghost" onClick={onDelete} title="Удалить" className="px-2 hover:text-bad-400">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onDelete}
+            title="Удалить"
+            aria-label="Удалить"
+            className="hover:text-danger"
+          >
             <Trash2 className="size-3.5" />
           </Button>
         </div>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -228,15 +253,15 @@ function ReportCard({ report, onClose }: { report: RefreshReport; onClose: () =>
       </div>
 
       {report.warnings.length > 0 ? (
-        <div className="border-t border-ink-850 px-4 py-3">
-          <p className="mb-2 text-xs font-medium text-warn-400">
+        <div className="border-t border-border px-4 py-3">
+          <p className="mb-2 text-xs font-medium text-warning">
             Пропущено строк: {report.warnings.length} — ядро sing-box их не поддерживает
           </p>
           <ul className="max-h-44 space-y-1 overflow-auto">
             {report.warnings.slice(0, 30).map((warning, index) => (
-              <li key={index} className="text-xs text-ink-500">
-                <span className="text-ink-400">{warning.reason}</span>
-                <span className="ml-1 font-mono text-ink-600">{warning.input.slice(0, 60)}</span>
+              <li key={index} className="text-xs text-muted-foreground">
+                <span className="text-foreground">{warning.reason}</span>
+                <span className="ml-1 font-mono opacity-70">{warning.input.slice(0, 60)}</span>
               </li>
             ))}
           </ul>
@@ -246,13 +271,28 @@ function ReportCard({ report, onClose }: { report: RefreshReport; onClose: () =>
   );
 }
 
-function Metric({ label, value, tone = 'neutral' }: { label: string; value: number; tone?: 'neutral' | 'ok' | 'warn' | 'brand' }) {
-  const color =
-    tone === 'ok' ? 'text-ok-400' : tone === 'warn' ? 'text-warn-400' : tone === 'brand' ? 'text-brand-400' : 'text-ink-100';
+function Metric({
+  label,
+  value,
+  tone = 'neutral',
+}: {
+  label: string;
+  value: number;
+  tone?: 'neutral' | 'ok' | 'warn' | 'brand';
+}) {
   return (
     <div>
-      <p className={`text-xl font-semibold tabular-nums ${color}`}>{value}</p>
-      <p className="mt-0.5 text-xs text-ink-500">{label}</p>
+      <p
+        className={cn(
+          'text-xl font-semibold tabular-nums',
+          tone === 'ok' && 'text-success',
+          tone === 'warn' && 'text-warning',
+          tone === 'brand' && 'text-primary',
+        )}
+      >
+        {value}
+      </p>
+      <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
     </div>
   );
 }
@@ -274,10 +314,12 @@ function SubscriptionEditor({
   const isEdit = subscription !== null;
 
   const [name, setName] = useState('');
+  const [source, setSource] = useState('');
   const [sourceType, setSourceType] = useState<'url' | 'raw'>('url');
   const [url, setUrl] = useState('');
   const [rawContent, setRawContent] = useState('');
-  const [headersText, setHeadersText] = useState('');
+  const [userAgent, setUserAgent] = useState('');
+  const [hwid, setHwid] = useState('');
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [interval, setIntervalMinutes] = useState(360);
   const [initialised, setInitialised] = useState(false);
@@ -285,12 +327,12 @@ function SubscriptionEditor({
   // Форма переиспользуется для создания и правки: заполняем один раз на открытие.
   if (open && !initialised) {
     setName(subscription?.name ?? '');
+    setSource(subscription?.source ?? '');
     setSourceType(subscription?.sourceType ?? 'url');
     setUrl(subscription?.url ?? '');
     setRawContent('');
-    setHeadersText(
-      subscription ? Object.entries(subscription.headers).map(([key, value]) => `${key}: ${value}`).join('\n') : '',
-    );
+    setUserAgent(subscription?.userAgent ?? '');
+    setHwid(subscription?.hwid ?? '');
     setAutoRefresh(subscription?.autoRefresh ?? true);
     setIntervalMinutes(subscription?.refreshIntervalMinutes ?? 360);
     setInitialised(true);
@@ -299,12 +341,12 @@ function SubscriptionEditor({
 
   const save = useMutation({
     mutationFn: async () => {
-      const headers = parseHeaders(headersText);
-
       if (isEdit) {
         await api.subscriptions.update(subscription.id, {
           name,
-          headers,
+          source,
+          userAgent,
+          hwid,
           autoRefresh,
           refreshIntervalMinutes: interval,
           ...(sourceType === 'url' ? { url } : { rawContent }),
@@ -315,8 +357,10 @@ function SubscriptionEditor({
 
       const { report } = await api.subscriptions.create({
         name,
+        source,
         sourceType,
-        headers,
+        userAgent,
+        hwid,
         autoRefresh,
         refreshIntervalMinutes: interval,
         ...(sourceType === 'url' ? { url } : { rawContent }),
@@ -351,9 +395,19 @@ function SubscriptionEditor({
       }
     >
       <div className="space-y-4">
-        <Field label="Название">
-          <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Например: основная" />
-        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Название">
+            <Input value={name} onChange={(event) => setName(event.target.value)} placeholder="Например: основная" />
+          </Field>
+
+          <Field label="Источник" hint="Просто заметка для себя — где куплено. В запросах не используется.">
+            <Input
+              value={source}
+              onChange={(event) => setSource(event.target.value)}
+              placeholder="Например: avtlk.ru, оплачено до 03.2027"
+            />
+          </Field>
+        </div>
 
         {!isEdit ? (
           <div className="flex gap-2">
@@ -362,11 +416,12 @@ function SubscriptionEditor({
                 key={type}
                 type="button"
                 onClick={() => setSourceType(type)}
-                className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
+                className={cn(
+                  'flex-1 rounded-md border px-3 py-2 text-sm transition-colors',
                   sourceType === type
-                    ? 'border-brand-500 bg-brand-500/10 text-brand-400'
-                    : 'border-ink-700 text-ink-400 hover:border-ink-600'
-                }`}
+                    ? 'border-primary bg-primary/10 text-primary'
+                    : 'border-border text-muted-foreground hover:border-input hover:text-foreground',
+                )}
               >
                 {type === 'url' ? 'Ссылка на подписку' : 'Вставить содержимое'}
               </button>
@@ -375,7 +430,10 @@ function SubscriptionEditor({
         ) : null}
 
         {sourceType === 'url' ? (
-          <Field label="Ссылка" hint="Панель сама определит формат: base64, список ссылок, JSON sing-box/Xray или YAML Clash.">
+          <Field
+            label="Ссылка"
+            hint="Панель сама определит формат: base64, список ссылок, JSON sing-box/Xray или YAML Clash."
+          >
             <Input
               value={url}
               onChange={(event) => setUrl(event.target.value)}
@@ -394,28 +452,51 @@ function SubscriptionEditor({
           </Field>
         )}
 
-        <Field
-          label="Дополнительные заголовки запроса"
-          hint={
-            <>
-              По одному на строку, в формате <span className="font-mono">Имя: значение</span>. Значения из настроек
-              (User-Agent и <span className="font-mono">x-hwid</span>) подставляются автоматически — здесь их можно
-              переопределить для конкретной подписки.
-            </>
-          }
-        >
-          <Textarea
-            rows={3}
-            value={headersText}
-            onChange={(event) => setHeadersText(event.target.value)}
-            placeholder={'x-hwid: wfl2vh3p3hzgb0lr\nx-device-os: macos'}
-          />
-        </Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label="User-Agent"
+            hint="Провайдеры отдают разный формат разным клиентам. Пусто — берётся значение из настроек."
+          >
+            <Input
+              value={userAgent}
+              onChange={(event) => setUserAgent(event.target.value)}
+              placeholder="v2rayNG/1.8.23"
+              className="font-mono text-xs"
+            />
+          </Field>
+
+          <Field
+            label="HWID"
+            hint="Идентификатор устройства. Панели с привязкой к устройству без него отдают одну ноду-заглушку."
+          >
+            <div className="flex gap-2">
+              <Input
+                value={hwid}
+                onChange={(event) => setHwid(event.target.value)}
+                placeholder="11112222-3333-4444-5555-666677778888"
+                className="font-mono text-xs"
+              />
+              <Button
+                type="button"
+                onClick={() => setHwid(crypto.randomUUID())}
+                title="Сгенерировать идентификатор"
+              >
+                Создать
+              </Button>
+            </div>
+          </Field>
+        </div>
+
+        <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+          Эти значения уходят в запрос как заголовки{' '}
+          <span className="font-mono text-foreground">User-Agent</span> и{' '}
+          <span className="font-mono text-foreground">x-hwid</span> — формировать их вручную не нужно.
+        </p>
 
         <div className="flex flex-wrap items-center gap-4">
           <Checkbox checked={autoRefresh} onChange={setAutoRefresh} label="Обновлять автоматически" />
           {autoRefresh ? (
-            <label className="flex items-center gap-2 text-sm text-ink-400">
+            <label className="flex items-center gap-2 text-sm text-muted-foreground">
               каждые
               <Input
                 type="number"
@@ -434,17 +515,3 @@ function SubscriptionEditor({
   );
 }
 
-/** «Имя: значение» построчно → объект. Пустые и битые строки игнорируются. */
-function parseHeaders(text: string): Record<string, string> {
-  const headers: Record<string, string> = {};
-  for (const line of text.split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed) continue;
-    const separator = trimmed.indexOf(':');
-    if (separator <= 0) continue;
-    const key = trimmed.slice(0, separator).trim();
-    const value = trimmed.slice(separator + 1).trim();
-    if (key) headers[key] = value;
-  }
-  return headers;
-}

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Eraser, FileJson, RefreshCw } from 'lucide-react';
+import { cn } from '../lib/cn';
 import { api, type EventLevel } from '../lib/api';
 import { formatDateTime } from '../lib/format';
 import { Badge, Button, Card, Modal, Select, Spinner } from '../components/ui';
@@ -11,7 +12,7 @@ export function LogsPage() {
   const toast = useToast();
 
   const [tab, setTab] = useState<'singbox' | 'events'>('singbox');
-  const [level, setLevel] = useState<EventLevel | ''>('');
+  const [level, setLevel] = useState<EventLevel | 'all'>('all');
   const [live, setLive] = useState(true);
   const [configOpen, setConfigOpen] = useState(false);
 
@@ -23,7 +24,7 @@ export function LogsPage() {
 
   const events = useQuery({
     queryKey: ['events', 200, level],
-    queryFn: () => api.events.list(200, level || undefined),
+    queryFn: () => api.events.list(200, level === 'all' ? undefined : level),
     refetchInterval: live && tab === 'events' ? 8000 : false,
   });
 
@@ -42,8 +43,8 @@ export function LogsPage() {
     <div className="space-y-4">
       <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold text-ink-100">Журнал</h1>
-          <p className="mt-0.5 text-sm text-ink-500">Вывод ядра sing-box и события панели</p>
+          <h1 className="text-xl font-semibold">Журнал</h1>
+          <p className="mt-0.5 text-sm text-muted-foreground">Вывод ядра sing-box и события панели</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button size="sm" icon={<FileJson className="size-4" />} onClick={() => setConfigOpen(true)}>
@@ -51,7 +52,8 @@ export function LogsPage() {
           </Button>
           <Button
             size="sm"
-            icon={<RefreshCw className={`size-4 ${live ? 'animate-spin [animation-duration:3s]' : ''}`} />}
+            variant={live ? 'primary' : 'secondary'}
+            icon={<RefreshCw className={cn('size-4', live && 'animate-spin [animation-duration:3s]')} />}
             onClick={() => setLive(!live)}
           >
             {live ? 'Живое обновление' : 'Обновление выключено'}
@@ -70,9 +72,10 @@ export function LogsPage() {
             key={key}
             type="button"
             onClick={() => setTab(key)}
-            className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
-              tab === key ? 'bg-ink-800 font-medium text-ink-100' : 'text-ink-400 hover:bg-ink-850'
-            }`}
+            className={cn(
+              'rounded-md px-3 py-1.5 text-sm transition-colors',
+              tab === key ? 'bg-accent font-medium text-accent-foreground' : 'text-muted-foreground hover:bg-accent/60',
+            )}
           >
             {label}
           </button>
@@ -86,50 +89,65 @@ export function LogsPage() {
               <Spinner className="size-5" />
             </div>
           ) : logs.data?.lines.length ? (
-            <pre className="max-h-[65vh] overflow-auto p-3.5 font-mono text-[11px] leading-relaxed break-all whitespace-pre-wrap text-ink-400">
+            <pre className="max-h-[65vh] overflow-auto p-3.5 font-mono text-[11px] leading-relaxed break-all whitespace-pre-wrap text-muted-foreground">
               {logs.data.lines.join('\n')}
             </pre>
           ) : (
-            <p className="px-4 py-10 text-center text-sm text-ink-600">
+            <p className="px-4 py-10 text-center text-sm text-muted-foreground">
               Ядро ещё ничего не написало. Если прокси не создано, sing-box намеренно не запускается.
             </p>
           )}
         </Card>
       ) : (
         <Card
+          title="События"
           action={
             <div className="flex items-center gap-2">
-              <Select value={level} onChange={(event) => setLevel(event.target.value as EventLevel | '')} className="h-8 py-1 text-xs">
-                <option value="">Все уровни</option>
-                <option value="info">Информация</option>
-                <option value="warn">Предупреждения</option>
-                <option value="error">Ошибки</option>
-              </Select>
-              <Button size="sm" variant="ghost" icon={<Eraser className="size-3.5" />} onClick={() => clear.mutate()} loading={clear.isPending}>
+              <Select
+                size="sm"
+                className="w-40"
+                aria-label="Уровень"
+                value={level}
+                onValueChange={(value) => setLevel(value as EventLevel | 'all')}
+                items={[
+                  { value: 'all', label: 'Все уровни' },
+                  { value: 'info', label: 'Информация' },
+                  { value: 'warn', label: 'Предупреждения' },
+                  { value: 'error', label: 'Ошибки' },
+                ]}
+              />
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<Eraser className="size-3.5" />}
+                onClick={() => clear.mutate()}
+                loading={clear.isPending}
+              >
                 Очистить
               </Button>
             </div>
           }
-          title="События"
         >
           {events.isPending ? (
             <div className="flex justify-center py-14">
               <Spinner className="size-5" />
             </div>
           ) : events.data?.events.length ? (
-            <ul className="max-h-[65vh] divide-y divide-ink-850 overflow-auto">
+            <ul className="max-h-[65vh] divide-y divide-border overflow-auto">
               {events.data.events.map((event) => (
                 <li key={event.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5">
-                  <span className="w-32 shrink-0 font-mono text-xs text-ink-600">{formatDateTime(event.createdAt)}</span>
+                  <span className="w-32 shrink-0 font-mono text-xs text-muted-foreground">
+                    {formatDateTime(event.createdAt)}
+                  </span>
                   <Badge tone={event.level === 'error' ? 'bad' : event.level === 'warn' ? 'warn' : 'neutral'}>
                     {event.source}
                   </Badge>
-                  <span className="min-w-0 flex-1 text-sm text-ink-300">{event.message}</span>
+                  <span className="min-w-0 flex-1 text-sm">{event.message}</span>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="px-4 py-10 text-center text-sm text-ink-600">Событий пока нет</p>
+            <p className="px-4 py-10 text-center text-sm text-muted-foreground">Событий пока нет</p>
           )}
         </Card>
       )}
@@ -140,7 +158,7 @@ export function LogsPage() {
             <Spinner />
           </div>
         ) : (
-          <pre className="max-h-[60vh] overflow-auto rounded-lg bg-ink-950 p-3 font-mono text-[11px] leading-relaxed text-ink-400">
+          <pre className="max-h-[60vh] overflow-auto rounded-md bg-background p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
             {config.data?.config ?? 'Конфиг ещё не сгенерирован'}
           </pre>
         )}

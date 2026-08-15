@@ -16,10 +16,12 @@ const objectId = z.string().regex(/^[a-f0-9]{24}$/i, 'некорректный �
 const createSchema = z
   .object({
     name: z.string().min(1, 'Введите название').max(120),
+    source: z.string().max(200).optional(),
     sourceType: z.enum(['url', 'raw']),
     url: z.string().trim().optional(),
     rawContent: z.string().optional(),
-    headers: z.record(z.string().max(255)).optional(),
+    userAgent: z.string().max(255).optional(),
+    hwid: z.string().max(255).optional(),
     autoRefresh: z.boolean().optional(),
     refreshIntervalMinutes: z.number().int().min(5).max(43200).optional(),
   })
@@ -29,9 +31,11 @@ const createSchema = z
 
 const updateSchema = z.object({
   name: z.string().min(1).max(120).optional(),
+  source: z.string().max(200).optional(),
   url: z.string().trim().optional(),
   rawContent: z.string().optional(),
-  headers: z.record(z.string().max(255)).optional(),
+  userAgent: z.string().max(255).optional(),
+  hwid: z.string().max(255).optional(),
   enabled: z.boolean().optional(),
   autoRefresh: z.boolean().optional(),
   refreshIntervalMinutes: z.number().int().min(5).max(43200).optional(),

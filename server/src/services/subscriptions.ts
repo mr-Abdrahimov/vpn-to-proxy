@@ -23,10 +23,8 @@ import { scheduleSync } from './singbox-sync.js';
  */
 
 const MAX_CONTENT_BYTES = 16 * 1024 * 1024;
-const FETCH_TIMEOUT_MS = 30_000;
 
 /** Заголовки, которые нельзя переопределять через пользовательские: сломают запрос. */
-const PROTECTED_HEADERS = new Set(['host', 'content-length', 'connection', 'transfer-encoding']);
 
 export interface RefreshReport {
   subscriptionId: string;
@@ -44,9 +42,11 @@ export interface RefreshReport {
 export interface SubscriptionDto {
   id: string;
   name: string;
+  source: string | null;
   sourceType: SubscriptionSource;
   url: string | null;
-  headers: Record<string, string>;
+  userAgent: string | null;
+  hwid: string | null;
   detectedFormat: string | null;
   enabled: boolean;
   autoRefresh: boolean;
@@ -61,9 +61,11 @@ export function toSubscriptionDto(sub: ISubscription): SubscriptionDto {
   return {
     id: String(sub._id),
     name: sub.name,
+    source: sub.source,
     sourceType: sub.sourceType,
     url: sub.url ? tryDecryptSecret(sub.url) : null,
-    headers: decodeHeaders(sub.headers),
+    userAgent: sub.userAgent,
+    hwid: sub.hwid ? tryDecryptSecret(sub.hwid) : null,
     detectedFormat: sub.detectedFormat,
     enabled: sub.enabled,
     autoRefresh: sub.autoRefresh,
@@ -79,10 +81,12 @@ export function toSubscriptionDto(sub: ISubscription): SubscriptionDto {
 
 export interface CreateSubscriptionInput {
   name: string;
+  source?: string;
   sourceType: SubscriptionSource;
   url?: string;
   rawContent?: string;
-  headers?: Record<string, string>;
+  userAgent?: string;
+  hwid?: string;
   autoRefresh?: boolean;
   refreshIntervalMinutes?: number;
 }
@@ -96,10 +100,12 @@ export async function createSubscription(input: CreateSubscriptionInput): Promis
 
   const created = await SubscriptionModel.create({
     name: input.name.trim() || 'Подписка',
+    source: input.source?.trim() || null,
     sourceType: input.sourceType,
     url: input.url ? encryptSecret(input.url.trim()) : null,
     rawContent: input.rawContent ? encryptSecret(input.rawContent) : null,
-    headers: encodeHeaders(input.headers),
+    userAgent: input.userAgent?.trim() || null,
+    hwid: input.hwid?.trim() ? encryptSecret(input.hwid.trim()) : null,
     autoRefresh: input.autoRefresh ?? true,
     refreshIntervalMinutes: input.refreshIntervalMinutes ?? getSettings().subscriptionRefreshMinutes ?? 360,
   });
@@ -115,9 +121,11 @@ export async function createSubscription(input: CreateSubscriptionInput): Promis
 
 export interface UpdateSubscriptionInput {
   name?: string;
+  source?: string;
   url?: string;
   rawContent?: string;
-  headers?: Record<string, string>;
+  userAgent?: string;
+  hwid?: string;
   enabled?: boolean;
   autoRefresh?: boolean;
   refreshIntervalMinutes?: number;
@@ -132,7 +140,14 @@ export async function updateSubscription(id: string, patch: UpdateSubscriptionIn
     update.url = encryptSecret(patch.url.trim());
   }
   if (patch.rawContent !== undefined) update.rawContent = encryptSecret(patch.rawContent);
-  if (patch.headers !== undefined) update.headers = encodeHeaders(patch.headers);
+  // Пустая строка — осознанная очистка поля, поэтому не путаем её с undefined.
+  if (patch.userAgent !== undefined) update.userAgent = patch.userAgent.trim() || null;
+  if (patch.hwid !== undefined) {
+    update.hwid = patch.hwid.trim() ? encryptSecret(patch.hwid.trim()) : null;
+    // Старые произвольные заголовки больше не участвуют в запросе.
+    update.headers = null;
+  }
+  if (patch.source !== undefined) update.source = patch.source.trim() || null;
   if (patch.enabled !== undefined) update.enabled = patch.enabled;
   if (patch.autoRefresh !== undefined) update.autoRefresh = patch.autoRefresh;
   if (patch.refreshIntervalMinutes !== undefined) update.refreshIntervalMinutes = patch.refreshIntervalMinutes;
@@ -249,8 +264,9 @@ async function loadContent(sub: ISubscription): Promise<string> {
   const url = tryDecryptSecret(sub.url ?? '');
   assertHttpUrl(url);
 
+  const timeoutMs = getSettings().subscriptionTimeoutMs;
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const response = await fetch(url, {
@@ -270,7 +286,7 @@ async function loadContent(sub: ISubscription): Promise<string> {
     return text;
   } catch (error) {
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new Error(`сервер подписки не ответил за ${FETCH_TIMEOUT_MS / 1000} с`);
+      throw new Error(`сервер подписки не ответил за ${Math.round(timeoutMs / 1000)} с — увеличь таймаут в настройках`);
     }
     throw error;
   } finally {
@@ -279,44 +295,59 @@ async function loadContent(sub: ISubscription): Promise<string> {
 }
 
 /**
- * Заголовки запроса: сначала значения по умолчанию из настроек, затем
- * переопределения конкретной подписки. Регистр имени заголовка не важен,
- * поэтому сверяем по нижнему регистру — иначе x-hwid и X-HWID уехали бы
- * в запрос обоими сразу.
+ * Заголовки запроса собираются из двух явных полей подписки.
+ *
+ * User-Agent важен потому, что провайдеры отдают под разными клиентами разный
+ * формат: под клиентский UA — base64 со ссылками, под браузерный — HTML-страницу.
+ * HWID уходит в x-hwid: панели с привязкой к устройству без него присылают
+ * одну ноду-заглушку вместо реального списка.
+ *
+ * Если у подписки поле пустое, берётся значение по умолчанию из настроек.
  */
 function buildRequestHeaders(sub: ISubscription): Record<string, string> {
   const settings = getSettings();
 
+  const userAgent = sub.userAgent?.trim() || settings.subscriptionUserAgent;
+  const hwid = (sub.hwid ? tryDecryptSecret(sub.hwid).trim() : '') || settings.subscriptionHwid.trim();
+
   const headers: Record<string, string> = {
-    'User-Agent': settings.subscriptionUserAgent,
+    'User-Agent': userAgent,
     Accept: '*/*',
   };
-  if (settings.subscriptionHwid.trim()) headers['x-hwid'] = settings.subscriptionHwid.trim();
-
-  const lowerToActual = new Map(Object.keys(headers).map((key) => [key.toLowerCase(), key]));
-
-  for (const [key, value] of Object.entries(decodeHeaders(sub.headers))) {
-    if (PROTECTED_HEADERS.has(key.toLowerCase())) continue;
-    const existing = lowerToActual.get(key.toLowerCase());
-    if (existing) delete headers[existing];
-    headers[key] = value;
-    lowerToActual.set(key.toLowerCase(), key);
-  }
+  if (hwid) headers['x-hwid'] = hwid;
 
   return headers;
 }
 
-function encodeHeaders(headers: Record<string, string> | undefined): string | null {
-  if (!headers) return null;
+/**
+ * Раньше заголовки задавались произвольным JSON. Переносим из него User-Agent
+ * и x-hwid в отдельные поля: форма теперь спрашивает только их, а остальные
+ * заголовки на практике никому не понадобились.
+ */
+export async function migrateLegacyHeaders(): Promise<number> {
+  const legacy = await SubscriptionModel.find({ headers: { $ne: null } });
+  let migrated = 0;
 
-  const cleaned: Record<string, string> = {};
-  for (const [key, value] of Object.entries(headers)) {
-    const name = key.trim();
-    if (!name || PROTECTED_HEADERS.has(name.toLowerCase())) continue;
-    cleaned[name] = String(value).trim();
+  for (const sub of legacy) {
+    const entries = new Map(
+      Object.entries(decodeHeaders(sub.headers)).map(([key, value]) => [key.toLowerCase(), value]),
+    );
+
+    const userAgent = entries.get('user-agent');
+    const hwid = entries.get('x-hwid');
+
+    if (!sub.userAgent && userAgent) sub.userAgent = userAgent;
+    if (!sub.hwid && hwid) sub.hwid = encryptSecret(hwid);
+    sub.headers = null;
+
+    await sub.save();
+    migrated += 1;
   }
 
-  return Object.keys(cleaned).length > 0 ? encryptSecret(JSON.stringify(cleaned)) : null;
+  if (migrated > 0) {
+    recordEvent('info', 'subscriptions', `Заголовки перенесены в поля User-Agent и HWID: ${migrated}`);
+  }
+  return migrated;
 }
 
 function decodeHeaders(raw: string | null): Record<string, string> {

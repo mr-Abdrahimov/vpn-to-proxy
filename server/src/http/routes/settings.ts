@@ -24,6 +24,7 @@ const patchSchema = z.object({
   subscriptionRefreshMinutes: z.number().int().min(0).max(43200).optional(),
   subscriptionUserAgent: z.string().trim().min(1).max(255).optional(),
   subscriptionHwid: z.string().trim().max(255).optional(),
+  subscriptionTimeoutMs: z.number().int().min(2000).max(300000).optional(),
   healthcheckMinutes: z.number().int().min(0).max(1440).optional(),
   healthcheckUrl: z.string().url().optional(),
   healthcheckConcurrency: z.number().int().min(1).max(64).optional(),

@@ -75,6 +75,8 @@ export type SubscriptionSource = (typeof SUBSCRIPTION_SOURCES)[number];
 export interface ISubscription {
   _id: Types.ObjectId;
   name: string;
+  /** Свободная заметка «где куплено» — чисто справочная, в запросах не участвует. */
+  source: string | null;
   sourceType: SubscriptionSource;
   /** Зашифровано: ссылка на подписку часто сама по себе является секретом. */
   url: string | null;
@@ -83,9 +85,20 @@ export interface ISubscription {
   /** Ярлык распознанного формата, например «base64 + список URI». */
   detectedFormat: string | null;
   /**
-   * Зашифрованный JSON с дополнительными HTTP-заголовками запроса.
-   * Панели вроде Remnawave с привязкой к устройству отдают реальный список нод
-   * только при наличии x-hwid; без него приходит одна нода-заглушка.
+   * User-Agent конкретной подписки. Провайдеры отдают разный формат в
+   * зависимости от него, поэтому иногда его нужно задать точечно.
+   * Пусто — берётся значение по умолчанию из настроек.
+   */
+  userAgent: string | null;
+  /**
+   * Идентификатор устройства. Панели с привязкой к устройству (Remnawave)
+   * без заголовка x-hwid отдают одну ноду-заглушку вместо реального списка.
+   * Хранится зашифрованным: по сути это часть учётных данных подписки.
+   */
+  hwid: string | null;
+  /**
+   * Устаревшее поле: произвольные заголовки в виде зашифрованного JSON.
+   * Оставлено только ради переноса данных в userAgent/hwid, см. migrateLegacyHeaders().
    */
   headers: string | null;
   enabled: boolean;
@@ -101,10 +114,13 @@ export interface ISubscription {
 const subscriptionSchema = new Schema<ISubscription>(
   {
     name: { type: String, required: true, trim: true },
+    source: { type: String, default: null, trim: true },
     sourceType: { type: String, required: true, enum: SUBSCRIPTION_SOURCES },
     url: { type: String, default: null },
     rawContent: { type: String, default: null },
     detectedFormat: { type: String, default: null },
+    userAgent: { type: String, default: null, trim: true },
+    hwid: { type: String, default: null },
     headers: { type: String, default: null },
     enabled: { type: Boolean, required: true, default: true },
     autoRefresh: { type: Boolean, required: true, default: true },

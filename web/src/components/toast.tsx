@@ -1,5 +1,7 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, CheckCircle2, Info, X, XCircle } from 'lucide-react';
+import { cn } from '../lib/cn';
+import { Button } from './ui';
 
 type ToastKind = 'success' | 'error' | 'info' | 'warning';
 
@@ -27,11 +29,11 @@ const AUTO_DISMISS_MS: Record<ToastKind, number> = {
   error: 12000,
 };
 
-const STYLES: Record<ToastKind, { icon: ReactNode; ring: string }> = {
-  success: { icon: <CheckCircle2 className="size-5 text-ok-400" />, ring: 'border-ok-500/40' },
-  error: { icon: <XCircle className="size-5 text-bad-400" />, ring: 'border-bad-500/40' },
-  warning: { icon: <AlertTriangle className="size-5 text-warn-400" />, ring: 'border-warn-500/40' },
-  info: { icon: <Info className="size-5 text-brand-400" />, ring: 'border-brand-500/40' },
+const STYLES: Record<ToastKind, { icon: ReactNode; border: string }> = {
+  success: { icon: <CheckCircle2 className="size-5 text-success" />, border: 'border-success/40' },
+  error: { icon: <XCircle className="size-5 text-danger" />, border: 'border-danger/40' },
+  warning: { icon: <AlertTriangle className="size-5 text-warning" />, border: 'border-warning/40' },
+  info: { icon: <Info className="size-5 text-primary" />, border: 'border-primary/40' },
 };
 
 let nextId = 1;
@@ -65,28 +67,26 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="pointer-events-none fixed top-4 right-4 z-100 flex w-[min(26rem,calc(100vw-2rem))] flex-col gap-2">
+      <div className="pointer-events-none fixed top-4 right-4 z-[100] flex w-[min(26rem,calc(100vw-2rem))] flex-col gap-2">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex gap-3 rounded-xl border bg-ink-850/95 p-3.5 shadow-xl backdrop-blur ${STYLES[toast.kind].ring}`}
             role="status"
+            className={cn(
+              'vtp-pop pointer-events-auto flex gap-3 rounded-xl border bg-popover p-3.5 shadow-xl',
+              STYLES[toast.kind].border,
+            )}
           >
             <div className="mt-0.5 shrink-0">{STYLES[toast.kind].icon}</div>
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-medium text-ink-100">{toast.title}</p>
+              <p className="text-sm font-medium text-popover-foreground">{toast.title}</p>
               {toast.description ? (
-                <p className="mt-1 text-xs break-words text-ink-400">{toast.description}</p>
+                <p className="mt-1 text-xs break-words text-muted-foreground">{toast.description}</p>
               ) : null}
             </div>
-            <button
-              type="button"
-              onClick={() => dismiss(toast.id)}
-              className="shrink-0 rounded p-1 text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
-              aria-label="Закрыть"
-            >
+            <Button variant="ghost" size="iconSm" onClick={() => dismiss(toast.id)} aria-label="Закрыть">
               <X className="size-4" />
-            </button>
+            </Button>
           </div>
         ))}
       </div>

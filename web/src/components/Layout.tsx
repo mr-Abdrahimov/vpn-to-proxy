@@ -2,9 +2,10 @@ import { useState, type ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Activity, Cable, LayoutDashboard, LogOut, Menu, ScrollText, Settings2, X } from 'lucide-react';
-import clsx from 'clsx';
+import { cn } from '../lib/cn';
 import { api, type SingBoxStatus, type User } from '../lib/api';
 import { Badge, Button } from './ui';
+import { ThemeToggle } from './theme';
 import { errorText, useToast } from './toast';
 
 const NAV = [
@@ -15,12 +16,12 @@ const NAV = [
   { to: '/settings', label: 'Настройки', icon: Settings2, end: false },
 ];
 
-const STATUS_LABELS: Record<SingBoxStatus, { text: string; tone: 'ok' | 'warn' | 'bad' | 'neutral' }> = {
-  running: { text: 'sing-box работает', tone: 'ok' },
-  starting: { text: 'sing-box запускается', tone: 'warn' },
-  stopped: { text: 'sing-box остановлен', tone: 'neutral' },
-  failed: { text: 'sing-box упал', tone: 'bad' },
-  'binary-missing': { text: 'sing-box не найден', tone: 'bad' },
+const STATUS_LABELS: Record<SingBoxStatus, { text: string; tone: 'ok' | 'warn' | 'bad' | 'neutral'; dot: string }> = {
+  running: { text: 'sing-box работает', tone: 'ok', dot: 'bg-success' },
+  starting: { text: 'sing-box запускается', tone: 'warn', dot: 'bg-warning animate-pulse' },
+  stopped: { text: 'sing-box остановлен', tone: 'neutral', dot: 'bg-muted-foreground' },
+  failed: { text: 'sing-box упал', tone: 'bad', dot: 'bg-danger' },
+  'binary-missing': { text: 'sing-box не найден', tone: 'bad', dot: 'bg-danger' },
 };
 
 export function Layout({ user, children }: { user: User; children: ReactNode }) {
@@ -31,11 +32,7 @@ export function Layout({ user, children }: { user: User; children: ReactNode }) 
 
   // Статус ядра нужен на каждой странице, поэтому опрашиваем его в шапке
   // и складываем в общий кэш — страницы читают его без своих запросов.
-  const status = useQuery({
-    queryKey: ['system-status'],
-    queryFn: api.system.status,
-    refetchInterval: 5000,
-  });
+  const status = useQuery({ queryKey: ['system-status'], queryFn: api.system.status, refetchInterval: 5000 });
 
   const logout = useMutation({
     mutationFn: api.auth.logout,
@@ -52,32 +49,26 @@ export function Layout({ user, children }: { user: User; children: ReactNode }) 
 
   return (
     <div className="flex min-h-screen">
-      {/* Затемнение под выдвижным меню на узких экранах */}
       {menuOpen ? (
-        <div className="fixed inset-0 z-30 bg-ink-950/70 lg:hidden" onClick={() => setMenuOpen(false)} aria-hidden />
+        <div className="fixed inset-0 z-30 bg-black/50 lg:hidden" onClick={() => setMenuOpen(false)} aria-hidden />
       ) : null}
 
       <aside
-        className={clsx(
-          'fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-ink-850 bg-ink-900 transition-transform lg:static lg:translate-x-0',
+        className={cn(
+          'fixed inset-y-0 left-0 z-40 flex w-60 flex-col border-r border-border bg-card transition-transform lg:static lg:translate-x-0',
           menuOpen ? 'translate-x-0' : '-translate-x-full',
         )}
       >
-        <div className="flex h-14 items-center justify-between gap-2 border-b border-ink-850 px-4">
+        <div className="flex h-14 items-center justify-between gap-2 border-b border-border px-4">
           <div className="flex items-center gap-2.5">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-brand-600 text-xs font-bold text-white">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-primary text-xs font-bold text-primary-foreground">
               VP
             </div>
-            <span className="text-sm font-semibold text-ink-100">vpn-to-proxy</span>
+            <span className="text-sm font-semibold">vpn-to-proxy</span>
           </div>
-          <button
-            type="button"
-            className="rounded p-1 text-ink-500 hover:text-ink-200 lg:hidden"
-            onClick={() => setMenuOpen(false)}
-            aria-label="Закрыть меню"
-          >
+          <Button variant="ghost" size="iconSm" className="lg:hidden" onClick={() => setMenuOpen(false)} aria-label="Закрыть меню">
             <X className="size-4" />
-          </button>
+          </Button>
         </div>
 
         <nav className="flex-1 space-y-0.5 p-2">
@@ -88,9 +79,11 @@ export function Layout({ user, children }: { user: User; children: ReactNode }) 
               end={item.end}
               onClick={() => setMenuOpen(false)}
               className={({ isActive }) =>
-                clsx(
-                  'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors',
-                  isActive ? 'bg-ink-800 font-medium text-ink-100' : 'text-ink-400 hover:bg-ink-850 hover:text-ink-200',
+                cn(
+                  'flex items-center gap-2.5 rounded-md px-3 py-2 text-sm transition-colors',
+                  isActive
+                    ? 'bg-accent font-medium text-accent-foreground'
+                    : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
                 )
               }
             >
@@ -100,39 +93,38 @@ export function Layout({ user, children }: { user: User; children: ReactNode }) 
           ))}
         </nav>
 
-        <div className="border-t border-ink-850 p-3">
+        <div className="space-y-3 border-t border-border p-3">
           {statusInfo ? (
-            <div className="mb-3 px-1">
+            <div className="px-1">
               <Badge tone={statusInfo.tone}>
-                <span
-                  className={clsx(
-                    'size-1.5 rounded-full',
-                    statusInfo.tone === 'ok' && 'bg-ok-400',
-                    statusInfo.tone === 'warn' && 'animate-pulse bg-warn-400',
-                    statusInfo.tone === 'bad' && 'bg-bad-400',
-                    statusInfo.tone === 'neutral' && 'bg-ink-500',
-                  )}
-                />
+                <span className={cn('size-1.5 rounded-full', statusInfo.dot)} />
                 {statusInfo.text}
               </Badge>
               {status.data?.singbox.version ? (
-                <p className="mt-1.5 px-0.5 font-mono text-[11px] text-ink-600">{status.data.singbox.version}</p>
+                <p className="mt-1.5 px-0.5 font-mono text-[11px] text-muted-foreground/70">
+                  {status.data.singbox.version}
+                </p>
               ) : null}
             </div>
           ) : null}
 
-          <div className="flex items-center justify-between gap-2 rounded-lg bg-ink-850 px-2.5 py-2">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">Тема</span>
+            <ThemeToggle />
+          </div>
+
+          <div className="flex items-center justify-between gap-2 rounded-md bg-muted px-2.5 py-2">
             <div className="min-w-0">
-              <p className="truncate text-xs font-medium text-ink-200">{user.username}</p>
-              <p className="text-[11px] text-ink-500">администратор</p>
+              <p className="truncate text-xs font-medium">{user.username}</p>
+              <p className="text-[11px] text-muted-foreground">администратор</p>
             </div>
             <Button
               variant="ghost"
-              size="sm"
+              size="iconSm"
               onClick={() => logout.mutate()}
               loading={logout.isPending}
               title="Выйти"
-              className="px-1.5"
+              aria-label="Выйти"
             >
               <LogOut className="size-4" />
             </Button>
@@ -141,16 +133,13 @@ export function Layout({ user, children }: { user: User; children: ReactNode }) 
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 items-center gap-3 border-b border-ink-850 bg-ink-900/60 px-4 backdrop-blur lg:hidden">
-          <button
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            className="rounded-lg p-1.5 text-ink-300 hover:bg-ink-800"
-            aria-label="Открыть меню"
-          >
+        <header className="flex h-14 items-center gap-3 border-b border-border bg-card px-4 lg:hidden">
+          <Button variant="ghost" size="icon" onClick={() => setMenuOpen(true)} aria-label="Открыть меню">
             <Menu className="size-5" />
-          </button>
-          <span className="text-sm font-semibold text-ink-100">vpn-to-proxy</span>
+          </Button>
+          <span className="text-sm font-semibold">vpn-to-proxy</span>
+          <div className="flex-1" />
+          <ThemeToggle />
         </header>
 
         <main className="min-w-0 flex-1 p-4 sm:p-6">{children}</main>

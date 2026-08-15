@@ -65,6 +65,13 @@ export const appSettingsSchema = z.object({
    */
   subscriptionHwid: z.string().trim().default('wfl2vh3p3hzgb0lr'),
 
+  /**
+   * Сколько ждать ответа от сервера подписки. Провайдеры с большими списками
+   * отвечают медленно, а зависшие соединения не должны держать обновление
+   * бесконечно — отсюда явный предел.
+   */
+  subscriptionTimeoutMs: z.number().int().min(2000).max(300000).default(30000),
+
   singboxLogLevel: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic']).default('info'),
 });
 
@@ -92,6 +99,7 @@ function defaultsFromEnv(): AppSettings {
     healthcheckTimeoutMs: 12000,
     subscriptionUserAgent: env.SUBSCRIPTION_USER_AGENT ?? 'Happ/4.13.0/macos catalyst/2606221804589',
     subscriptionHwid: env.SUBSCRIPTION_HWID ?? 'wfl2vh3p3hzgb0lr',
+    subscriptionTimeoutMs: 30000,
     singboxLogLevel: 'info',
   });
 }

@@ -28,7 +28,10 @@ export async function buildApp(): Promise<FastifyInstance> {
     contentSecurityPolicy: {
       directives: {
         defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
+        // Хеш встроенного скрипта из web/index.html, который выставляет тему
+        // до первой отрисовки. Меняешь скрипт — пересчитай хеш:
+        //   node -e "console.log(require('crypto').createHash('sha256').update(СКРИПТ).digest('base64'))"
+        scriptSrc: ["'self'", "'sha256-FoFqrlUtdQOXQFi5yciZAYXUAOLzSmrLwDGFG/1dOgw='"],
         styleSrc: ["'self'", "'unsafe-inline'"],
         imgSrc: ["'self'", 'data:'],
         connectSrc: ["'self'"],
@@ -50,11 +53,17 @@ export async function buildApp(): Promise<FastifyInstance> {
     errorResponseBuilder: () => ({ error: 'Слишком много запросов, подожди немного' }),
   });
 
+  // Обработчик ошибок ставится ДО регистрации роутов. Каждый плагин с роутами
+  // создаёт свой инкапсулированный контекст в момент register(), и обработчик,
+  // назначенный позже, до этих контекстов уже не доходит — ответы уезжали бы
+  // в дефолтный формат Fastify («Internal Server Error» вместо текста ошибки).
+  registerErrorHandler(app);
+
   await registerAuth(app);
   await registerRoutes(app);
 
   await registerStatic(app);
-  registerErrorHandling(app);
+  registerNotFoundHandler(app);
 
   return app;
 }
@@ -81,7 +90,7 @@ async function registerStatic(app: FastifyInstance): Promise<void> {
   });
 }
 
-function registerErrorHandling(app: FastifyInstance): void {
+function registerNotFoundHandler(app: FastifyInstance): void {
   app.setNotFoundHandler((request, reply) => {
     if (request.url.startsWith('/api/')) {
       reply.code(404).send({ error: 'Метод API не найден' });
@@ -97,7 +106,9 @@ function registerErrorHandling(app: FastifyInstance): void {
 
     reply.code(404).send({ error: 'Не найдено' });
   });
+}
 
+function registerErrorHandler(app: FastifyInstance): void {
   app.setErrorHandler((error: FastifyError, request, reply) => {
     if (error instanceof HttpError) {
       reply.code(error.statusCode).send({ error: error.message, details: error.details });

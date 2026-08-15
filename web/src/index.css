@@ -1,86 +1,194 @@
 @import 'tailwindcss';
 
 /*
- * Панель — инструмент, в который смотрят подолгу и часто ночью, поэтому
- * тема одна: тёмная, с холодной сине-серой базой и одним акцентом.
+ * Тема переключается классом на <html>, а не media-запросом: пользователь
+ * должен уметь выбрать светлую тему на системной тёмной и наоборот.
  */
-@theme {
-  --color-ink-950: #070a10;
-  --color-ink-900: #0b111c;
-  --color-ink-850: #101827;
-  --color-ink-800: #16202f;
-  --color-ink-750: #1c2839;
-  --color-ink-700: #253346;
-  --color-ink-600: #33455f;
-  --color-ink-500: #4a5f7d;
-  --color-ink-400: #6d82a0;
-  --color-ink-300: #96a7bf;
-  --color-ink-200: #c2cee0;
-  --color-ink-100: #e4eaf3;
+@custom-variant dark (&:where(.dark, .dark *));
 
-  --color-brand-600: #0284c7;
-  --color-brand-500: #0ea5e9;
-  --color-brand-400: #38bdf8;
+/*
+ * Семантические токены вместо конкретных цветов. Компоненты знают про
+ * «поверхность» и «границу», а не про slate-800 — поэтому вторая тема
+ * получается переопределением переменных, без правок в разметке.
+ */
+:root {
+  --background: #f4f6f9;
+  --foreground: #0f172a;
 
-  --color-ok-500: #22c55e;
-  --color-ok-400: #4ade80;
-  --color-warn-500: #f59e0b;
-  --color-warn-400: #fbbf24;
-  --color-bad-500: #ef4444;
-  --color-bad-400: #f87171;
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  --muted: #eef1f6;
+  --muted-foreground: #64748b;
+
+  --accent: #e8edf5;
+  --accent-foreground: #0f172a;
+
+  --border: #dde3ec;
+  --input: #cfd8e5;
+  --ring: #0ea5e9;
+
+  --primary: #0284c7;
+  --primary-foreground: #ffffff;
+  --primary-hover: #0369a1;
+
+  --success: #15803d;
+  --success-surface: #dcfce7;
+  --warning: #b45309;
+  --warning-surface: #fef3c7;
+  --danger: #dc2626;
+  --danger-surface: #fee2e2;
+
+  --radius: 0.625rem;
+}
+
+.dark {
+  --background: #080c14;
+  --foreground: #e3eaf4;
+
+  --card: #0e1520;
+  --card-foreground: #e3eaf4;
+
+  --popover: #131c29;
+  --popover-foreground: #e3eaf4;
+
+  --muted: #16202e;
+  --muted-foreground: #8296b0;
+
+  --accent: #1a2534;
+  --accent-foreground: #e3eaf4;
+
+  --border: #1e2a3b;
+  --input: #2a394e;
+  --ring: #38bdf8;
+
+  --primary: #0284c7;
+  --primary-foreground: #ffffff;
+  --primary-hover: #0ea5e9;
+
+  --success: #4ade80;
+  --success-surface: #052e16;
+  --warning: #fbbf24;
+  --warning-surface: #3b2606;
+  --danger: #f87171;
+  --danger-surface: #3f1212;
+}
+
+/*
+ * `inline` обязателен: без него Tailwind подставит значение переменной
+ * на момент сборки, и утилиты перестанут реагировать на смену темы.
+ */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-success: var(--success);
+  --color-success-surface: var(--success-surface);
+  --color-warning: var(--warning);
+  --color-warning-surface: var(--warning-surface);
+  --color-danger: var(--danger);
+  --color-danger-surface: var(--danger-surface);
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 
   --font-mono: ui-monospace, 'SF Mono', 'JetBrains Mono', Menlo, Consolas, monospace;
 }
 
 @layer base {
+  * {
+    border-color: var(--border);
+  }
+
   html {
+    color-scheme: light;
+  }
+
+  html.dark {
     color-scheme: dark;
   }
 
   body {
-    @apply bg-ink-950 text-ink-200 antialiased;
+    @apply bg-background text-foreground antialiased;
     font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
   }
 
-  /* Тонкие скроллбары, чтобы длинные таблицы не выглядели тяжело. */
+  /* Тонкие скроллбары: длинные таблицы не должны выглядеть тяжело. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-ink-700) transparent;
+    scrollbar-color: var(--input) transparent;
   }
 
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
   }
+
   ::-webkit-scrollbar-thumb {
-    background: var(--color-ink-700);
+    background: var(--input);
     border-radius: 6px;
     border: 2px solid transparent;
     background-clip: content-box;
   }
+
   ::-webkit-scrollbar-thumb:hover {
-    background: var(--color-ink-600);
+    background: var(--muted-foreground);
     background-clip: content-box;
   }
 
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-brand-500;
+    @apply outline-2 outline-offset-2 outline-ring;
   }
 }
 
 @layer components {
-  .card {
-    @apply rounded-xl border border-ink-800 bg-ink-900;
-  }
-
-  .field {
-    @apply w-full rounded-lg border border-ink-700 bg-ink-850 px-3 py-2 text-sm text-ink-100
-           placeholder:text-ink-500 transition-colors
-           focus:border-brand-500 focus:outline-none
-           disabled:cursor-not-allowed disabled:opacity-50;
-  }
-
   .label {
-    @apply mb-1.5 block text-xs font-medium tracking-wide text-ink-400 uppercase;
+    @apply mb-1.5 block text-xs font-medium tracking-wide text-muted-foreground uppercase;
   }
+}
+
+/* Плавное появление выпадающих меню и диалогов Radix. */
+@keyframes vtp-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes vtp-zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97) translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+[data-state='open'].vtp-overlay {
+  animation: vtp-fade-in 140ms ease-out;
+}
+
+[data-state='open'].vtp-pop {
+  animation: vtp-zoom-in 140ms ease-out;
 }

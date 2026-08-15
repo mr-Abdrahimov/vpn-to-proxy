@@ -1,7 +1,7 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { PROXY_KINDS, PROXY_STATUSES, ProxyEndpointModel, type ProxyKind } from '../../db/models.js';
-import { runHealthchecks } from '../../services/healthcheck.js';
+import { isHealthcheckRunning, runHealthchecks, type HealthcheckSummary } from '../../services/healthcheck.js';
 import { listNodes } from '../../services/nodes.js';
 import {
   EXPORT_FORMATS,
@@ -38,6 +38,28 @@ const exportQuerySchema = z.object({
   onlyEnabled: z.coerce.boolean().optional(),
   onlyOk: z.coerce.boolean().optional(),
 });
+
+/**
+ * Проверка нескольких прокси занимает секунды, и клиенту удобно получить итог
+ * сразу. Проверка сотен — это минуты: держать HTTP-запрос открытым нельзя,
+ * обратный прокси оборвёт его по таймауту. Поэтому большие прогоны уходят в
+ * фон, а интерфейс следит за ними через healthcheckRunning в /system/status.
+ */
+const SYNC_CHECK_LIMIT = 40;
+
+async function startOrAwaitHealthcheck(
+  ids: string[] | undefined,
+  total: number,
+): Promise<{ summary?: HealthcheckSummary; started?: boolean; total?: number }> {
+  if (total <= SYNC_CHECK_LIMIT) {
+    return { summary: await runHealthchecks(ids) };
+  }
+
+  void runHealthchecks(ids).catch(() => {
+    // Ошибки прогона уже попадают в журнал внутри самой проверки.
+  });
+  return { started: true, total };
+}
 
 export async function proxyRoutes(app: FastifyInstance): Promise<void> {
   app.patch('/api/proxies/:id', async (request) => {
@@ -96,8 +118,10 @@ export async function proxyRoutes(app: FastifyInstance): Promise<void> {
         scheduleSync('перевыпуск учётных данных');
         return { updated };
       }
-      case 'check':
-        return { summary: await runHealthchecks(body.ids) };
+      case 'check': {
+        if (isHealthcheckRunning()) throw conflict('Проверка уже выполняется, дождись её завершения');
+        return startOrAwaitHealthcheck(body.ids, body.ids.length);
+      }
     }
   });
 
@@ -129,6 +153,9 @@ export async function proxyRoutes(app: FastifyInstance): Promise<void> {
       request.body ?? {},
     );
 
-    return { summary: await runHealthchecks(body.ids) };
+    if (isHealthcheckRunning()) throw conflict('Проверка уже выполняется, дождись её завершения');
+
+    const total = body.ids?.length ?? (await ProxyEndpointModel.countDocuments({ enabled: true }));
+    return startOrAwaitHealthcheck(body.ids, total);
   });
 }

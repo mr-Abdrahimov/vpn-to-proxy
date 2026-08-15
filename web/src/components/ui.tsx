@@ -1,55 +1,66 @@
 import {
   forwardRef,
-  useEffect,
   useState,
   type ButtonHTMLAttributes,
   type InputHTMLAttributes,
   type ReactNode,
-  type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from 'react';
-import { Check, Copy, Loader2, X } from 'lucide-react';
-import clsx from 'clsx';
+import { Checkbox as RxCheckbox, Dialog as RxDialog, Select as RxSelect, Switch as RxSwitch, Tooltip as RxTooltip } from 'radix-ui';
+import { cva, type VariantProps } from 'class-variance-authority';
+import { Check, ChevronDown, ChevronUp, Copy, Loader2, X } from 'lucide-react';
+import { cn } from '../lib/cn';
 
-/** Небольшой набор примитивов — ровно то, что нужно этой панели. */
+/**
+ * Набор примитивов на Radix UI: доступность, клавиатура и фокус-ловушки
+ * приходят из библиотеки, здесь остаётся только оформление.
+ * Цвета берутся из семантических токенов, поэтому обе темы работают
+ * без единого `dark:`-класса в компонентах.
+ */
 
-type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger';
-type ButtonSize = 'sm' | 'md';
+// ───────────────────────────────── Button ─────────────────────────────────
 
-const BUTTON_VARIANTS: Record<ButtonVariant, string> = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-500 disabled:hover:bg-brand-600',
-  secondary: 'bg-ink-750 text-ink-100 hover:bg-ink-700 border border-ink-700',
-  ghost: 'text-ink-300 hover:bg-ink-800 hover:text-ink-100',
-  danger: 'bg-bad-500/15 text-bad-400 border border-bad-500/30 hover:bg-bad-500/25',
-};
+const buttonVariants = cva(
+  cn(
+    'inline-flex shrink-0 items-center justify-center rounded-md font-medium whitespace-nowrap',
+    'transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+    'disabled:pointer-events-none disabled:opacity-50',
+  ),
+  {
+    variants: {
+      variant: {
+        primary: 'bg-primary text-primary-foreground hover:bg-primary-hover',
+        secondary: 'border border-border bg-card text-foreground hover:bg-accent',
+        ghost: 'text-muted-foreground hover:bg-accent hover:text-foreground',
+        danger: 'border border-danger/30 bg-danger/10 text-danger hover:bg-danger/20',
+      },
+      size: {
+        sm: 'h-8 gap-1.5 px-2.5 text-xs',
+        md: 'h-9.5 gap-2 px-3.5 text-sm',
+        icon: 'size-8 p-0',
+        iconSm: 'size-7 p-0',
+      },
+    },
+    defaultVariants: { variant: 'secondary', size: 'md' },
+  },
+);
 
-const BUTTON_SIZES: Record<ButtonSize, string> = {
-  sm: 'h-8 px-2.5 text-xs gap-1.5',
-  md: 'h-9.5 px-3.5 text-sm gap-2',
-};
-
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
+export interface ButtonProps
+  extends ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
   loading?: boolean;
   icon?: ReactNode;
 }
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'secondary', size = 'md', loading, icon, className, children, disabled, ...rest },
+  { variant, size, loading, icon, className, children, disabled, ...rest },
   ref,
 ) {
   return (
     <button
       ref={ref}
       disabled={disabled || loading}
-      className={clsx(
-        'inline-flex shrink-0 items-center justify-center rounded-lg font-medium transition-colors',
-        'disabled:cursor-not-allowed disabled:opacity-50',
-        BUTTON_VARIANTS[variant],
-        BUTTON_SIZES[size],
-        className,
-      )}
+      className={cn(buttonVariants({ variant, size }), className)}
       {...rest}
     >
       {loading ? <Loader2 className="size-4 animate-spin" /> : icon}
@@ -58,38 +69,154 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   );
 });
 
+// ───────────────────────────────── Поля ─────────────────────────────────
+
+const fieldClasses = cn(
+  'w-full rounded-md border border-input bg-card px-3 py-2 text-sm text-foreground',
+  'placeholder:text-muted-foreground/70 transition-colors',
+  'focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none',
+  'disabled:cursor-not-allowed disabled:opacity-50',
+);
+
 export const Input = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function Input(
   { className, ...rest },
   ref,
 ) {
-  return <input ref={ref} className={clsx('field', className)} {...rest} />;
+  return <input ref={ref} className={cn(fieldClasses, 'h-9.5', className)} {...rest} />;
 });
 
-export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(function Textarea(
-  { className, ...rest },
-  ref,
-) {
-  return <textarea ref={ref} className={clsx('field font-mono text-xs', className)} {...rest} />;
-});
-
-export const Select = forwardRef<HTMLSelectElement, SelectHTMLAttributes<HTMLSelectElement>>(function Select(
-  { className, children, ...rest },
-  ref,
-) {
-  return (
-    <select ref={ref} className={clsx('field cursor-pointer appearance-none pr-8', className)} {...rest}>
-      {children}
-    </select>
-  );
-});
+export const Textarea = forwardRef<HTMLTextAreaElement, TextareaHTMLAttributes<HTMLTextAreaElement>>(
+  function Textarea({ className, ...rest }, ref) {
+    return <textarea ref={ref} className={cn(fieldClasses, 'font-mono text-xs', className)} {...rest} />;
+  },
+);
 
 export function Field({ label, hint, children }: { label: string; hint?: ReactNode; children: ReactNode }) {
   return (
     <div>
       <span className="label">{label}</span>
       {children}
-      {hint ? <p className="mt-1.5 text-xs leading-relaxed text-ink-500">{hint}</p> : null}
+      {hint ? <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">{hint}</p> : null}
     </div>
+  );
+}
+
+// ───────────────────────────────── Select ─────────────────────────────────
+
+export interface SelectItem {
+  value: string;
+  label: string;
+}
+
+export function Select({
+  value,
+  onValueChange,
+  items,
+  placeholder = 'Выбрать…',
+  className,
+  size = 'md',
+  'aria-label': ariaLabel,
+}: {
+  value: string;
+  onValueChange: (value: string) => void;
+  items: SelectItem[];
+  placeholder?: string;
+  className?: string;
+  size?: 'sm' | 'md';
+  'aria-label'?: string;
+}) {
+  return (
+    <RxSelect.Root value={value} onValueChange={onValueChange}>
+      <RxSelect.Trigger
+        aria-label={ariaLabel}
+        className={cn(
+          'inline-flex items-center justify-between gap-2 rounded-md border border-input bg-card text-foreground',
+          'transition-colors focus:border-ring focus:ring-1 focus:ring-ring focus:outline-none',
+          'data-[placeholder]:text-muted-foreground/70',
+          size === 'sm' ? 'h-8 px-2.5 text-xs' : 'h-9.5 px-3 text-sm',
+          className,
+        )}
+      >
+        <RxSelect.Value placeholder={placeholder} />
+        <RxSelect.Icon>
+          <ChevronDown className="size-4 opacity-60" />
+        </RxSelect.Icon>
+      </RxSelect.Trigger>
+
+      <RxSelect.Portal>
+        <RxSelect.Content
+          position="popper"
+          sideOffset={6}
+          className="vtp-pop z-50 max-h-72 min-w-(--radix-select-trigger-width) overflow-hidden rounded-lg border border-border bg-popover text-popover-foreground shadow-lg"
+        >
+          <RxSelect.ScrollUpButton className="flex h-6 items-center justify-center">
+            <ChevronUp className="size-3.5 opacity-60" />
+          </RxSelect.ScrollUpButton>
+
+          <RxSelect.Viewport className="p-1">
+            {items.map((item) => (
+              <RxSelect.Item
+                key={item.value}
+                value={item.value}
+                className={cn(
+                  'relative flex cursor-pointer items-center rounded-md py-1.5 pr-7 pl-2.5 text-sm select-none',
+                  'data-[highlighted]:bg-accent data-[highlighted]:outline-none',
+                )}
+              >
+                <RxSelect.ItemText>{item.label}</RxSelect.ItemText>
+                <RxSelect.ItemIndicator className="absolute right-2">
+                  <Check className="size-3.5" />
+                </RxSelect.ItemIndicator>
+              </RxSelect.Item>
+            ))}
+          </RxSelect.Viewport>
+
+          <RxSelect.ScrollDownButton className="flex h-6 items-center justify-center">
+            <ChevronDown className="size-3.5 opacity-60" />
+          </RxSelect.ScrollDownButton>
+        </RxSelect.Content>
+      </RxSelect.Portal>
+    </RxSelect.Root>
+  );
+}
+
+// ──────────────────────────── Switch и Checkbox ────────────────────────────
+
+export function Toggle({
+  checked,
+  onChange,
+  disabled,
+  title,
+  className,
+}: {
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  disabled?: boolean;
+  title?: string;
+  className?: string;
+}) {
+  return (
+    <RxSwitch.Root
+      checked={checked}
+      onCheckedChange={onChange}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      className={cn(
+        'relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-transparent',
+        'transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+        'focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50',
+        'data-[state=checked]:bg-primary data-[state=unchecked]:bg-input',
+        className,
+      )}
+    >
+      <RxSwitch.Thumb
+        className={cn(
+          'pointer-events-none block size-4 rounded-full bg-white shadow-sm ring-0',
+          'transition-transform data-[state=checked]:translate-x-4.5 data-[state=unchecked]:translate-x-0.5',
+        )}
+      />
+    </RxSwitch.Root>
   );
 }
 
@@ -98,95 +225,91 @@ export function Checkbox({
   onChange,
   label,
   disabled,
+  className,
 }: {
   checked: boolean;
   onChange: (value: boolean) => void;
-  label: ReactNode;
+  label?: ReactNode;
   disabled?: boolean;
+  className?: string;
 }) {
+  const control = (
+    <RxCheckbox.Root
+      checked={checked}
+      onCheckedChange={(state) => onChange(state === true)}
+      disabled={disabled}
+      className={cn(
+        'flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-input bg-card',
+        'transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+        'data-[state=checked]:border-primary data-[state=checked]:bg-primary',
+        'data-[state=indeterminate]:border-primary data-[state=indeterminate]:bg-primary',
+        'disabled:cursor-not-allowed disabled:opacity-50',
+        className,
+      )}
+    >
+      <RxCheckbox.Indicator className="text-primary-foreground">
+        <Check className="size-3" strokeWidth={3} />
+      </RxCheckbox.Indicator>
+    </RxCheckbox.Root>
+  );
+
+  if (label === undefined) return control;
+
   return (
     <label
-      className={clsx(
-        'inline-flex cursor-pointer items-center gap-2 text-sm text-ink-200 select-none',
+      className={cn(
+        'inline-flex cursor-pointer items-center gap-2 text-sm text-foreground select-none',
         disabled && 'cursor-not-allowed opacity-50',
       )}
     >
-      <input
-        type="checkbox"
-        checked={checked}
-        disabled={disabled}
-        onChange={(event) => onChange(event.target.checked)}
-        className="size-4 cursor-pointer rounded border-ink-600 bg-ink-850 accent-brand-500"
-      />
+      {control}
       {label}
     </label>
   );
 }
 
-export function Toggle({
-  checked,
-  onChange,
-  disabled,
+// ───────────────────────────── Мелкие элементы ─────────────────────────────
+
+const badgeVariants = cva(
+  'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-4 font-medium whitespace-nowrap',
+  {
+    variants: {
+      tone: {
+        neutral: 'border-border bg-muted text-muted-foreground',
+        ok: 'border-success/30 bg-success-surface text-success',
+        warn: 'border-warning/30 bg-warning-surface text-warning',
+        bad: 'border-danger/30 bg-danger-surface text-danger',
+        brand: 'border-primary/30 bg-primary/10 text-primary',
+      },
+    },
+    defaultVariants: { tone: 'neutral' },
+  },
+);
+
+export function Badge({
+  tone,
+  children,
+  className,
+}: VariantProps<typeof badgeVariants> & { children: ReactNode; className?: string }) {
+  return <span className={cn(badgeVariants({ tone }), className)}>{children}</span>;
+}
+
+export function Card({
   title,
+  action,
+  children,
+  className,
 }: {
-  checked: boolean;
-  onChange: (value: boolean) => void;
-  disabled?: boolean;
-  title?: string;
+  title?: ReactNode;
+  action?: ReactNode;
+  children: ReactNode;
+  className?: string;
 }) {
   return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      title={title}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={clsx(
-        'relative h-5 w-9 shrink-0 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-        checked ? 'bg-brand-600' : 'bg-ink-700',
-      )}
-    >
-      <span
-        className={clsx(
-          'absolute top-0.5 size-4 rounded-full bg-white transition-transform',
-          checked ? 'translate-x-4.5' : 'translate-x-0.5',
-        )}
-      />
-    </button>
-  );
-}
-
-type BadgeTone = 'neutral' | 'ok' | 'warn' | 'bad' | 'brand';
-
-const BADGE_TONES: Record<BadgeTone, string> = {
-  neutral: 'bg-ink-800 text-ink-300 border-ink-700',
-  ok: 'bg-ok-500/12 text-ok-400 border-ok-500/25',
-  warn: 'bg-warn-500/12 text-warn-400 border-warn-500/25',
-  bad: 'bg-bad-500/12 text-bad-400 border-bad-500/25',
-  brand: 'bg-brand-500/12 text-brand-400 border-brand-500/25',
-};
-
-export function Badge({ tone = 'neutral', children, className }: { tone?: BadgeTone; children: ReactNode; className?: string }) {
-  return (
-    <span
-      className={clsx(
-        'inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] leading-4 font-medium whitespace-nowrap',
-        BADGE_TONES[tone],
-        className,
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
-export function Card({ title, action, children, className }: { title?: ReactNode; action?: ReactNode; children: ReactNode; className?: string }) {
-  return (
-    <section className={clsx('card', className)}>
+    <section className={cn('rounded-lg border border-border bg-card text-card-foreground', className)}>
       {title !== undefined ? (
-        <header className="flex items-center justify-between gap-3 border-b border-ink-800 px-4 py-3">
-          <h2 className="text-sm font-semibold text-ink-100">{title}</h2>
+        <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+          <h2 className="text-sm font-semibold">{title}</h2>
           {action}
         </header>
       ) : null}
@@ -196,26 +319,59 @@ export function Card({ title, action, children, className }: { title?: ReactNode
 }
 
 export function Spinner({ className }: { className?: string }) {
-  return <Loader2 className={clsx('size-4 animate-spin text-ink-400', className)} />;
+  return <Loader2 className={cn('size-4 animate-spin text-muted-foreground', className)} />;
 }
 
-export function EmptyState({ icon, title, description, action }: { icon?: ReactNode; title: string; description?: ReactNode; action?: ReactNode }) {
+export function EmptyState({
+  icon,
+  title,
+  description,
+  action,
+}: {
+  icon?: ReactNode;
+  title: string;
+  description?: ReactNode;
+  action?: ReactNode;
+}) {
   return (
     <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-      {icon ? <div className="text-ink-600">{icon}</div> : null}
+      {icon ? <div className="text-muted-foreground/50">{icon}</div> : null}
       <div>
-        <p className="text-sm font-medium text-ink-200">{title}</p>
-        {description ? <p className="mx-auto mt-1.5 max-w-md text-sm text-ink-500">{description}</p> : null}
+        <p className="text-sm font-medium">{title}</p>
+        {description ? (
+          <p className="mx-auto mt-1.5 max-w-md text-sm text-muted-foreground">{description}</p>
+        ) : null}
       </div>
       {action}
     </div>
   );
 }
 
+export function Tooltip({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <RxTooltip.Provider delayDuration={400}>
+      <RxTooltip.Root>
+        <RxTooltip.Trigger asChild>{children}</RxTooltip.Trigger>
+        <RxTooltip.Portal>
+          <RxTooltip.Content
+            sideOffset={6}
+            className="vtp-pop z-50 rounded-md border border-border bg-popover px-2 py-1 text-xs text-popover-foreground shadow-md"
+          >
+            {label}
+          </RxTooltip.Content>
+        </RxTooltip.Portal>
+      </RxTooltip.Root>
+    </RxTooltip.Provider>
+  );
+}
+
+// ───────────────────────────────── Диалоги ─────────────────────────────────
+
 export function Modal({
   open,
   onClose,
   title,
+  description,
   children,
   footer,
   wide,
@@ -223,84 +379,48 @@ export function Modal({
   open: boolean;
   onClose: () => void;
   title: string;
+  description?: string;
   children: ReactNode;
   footer?: ReactNode;
   wide?: boolean;
 }) {
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-ink-950/80 p-4 backdrop-blur-sm sm:p-8">
-      {/* Клик по подложке закрывает окно, клик внутри — нет. */}
-      <div className="absolute inset-0" onClick={onClose} aria-hidden />
-      <div
-        className={clsx(
-          'relative my-auto w-full rounded-xl border border-ink-750 bg-ink-900 shadow-2xl',
-          wide ? 'max-w-3xl' : 'max-w-lg',
-        )}
-        role="dialog"
-        aria-modal="true"
-      >
-        <header className="flex items-center justify-between gap-3 border-b border-ink-800 px-5 py-3.5">
-          <h2 className="text-sm font-semibold text-ink-100">{title}</h2>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded p-1 text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-200"
-            aria-label="Закрыть"
-          >
-            <X className="size-4" />
-          </button>
-        </header>
-        <div className="px-5 py-4">{children}</div>
-        {footer ? <footer className="flex justify-end gap-2 border-t border-ink-800 px-5 py-3.5">{footer}</footer> : null}
-      </div>
-    </div>
-  );
-}
+    <RxDialog.Root open={open} onOpenChange={(next) => !next && onClose()}>
+      <RxDialog.Portal>
+        <RxDialog.Overlay className="vtp-overlay fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" />
+        <RxDialog.Content
+          className={cn(
+            'vtp-pop fixed top-1/2 left-1/2 z-50 max-h-[calc(100vh-2rem)] w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2',
+            'overflow-y-auto rounded-xl border border-border bg-card text-card-foreground shadow-2xl',
+            wide ? 'max-w-3xl' : 'max-w-lg',
+          )}
+        >
+          <header className="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-card px-5 py-3.5">
+            <div>
+              <RxDialog.Title className="text-sm font-semibold">{title}</RxDialog.Title>
+              {description ? (
+                <RxDialog.Description className="mt-0.5 text-xs text-muted-foreground">
+                  {description}
+                </RxDialog.Description>
+              ) : null}
+            </div>
+            <RxDialog.Close asChild>
+              <Button variant="ghost" size="iconSm" aria-label="Закрыть">
+                <X className="size-4" />
+              </Button>
+            </RxDialog.Close>
+          </header>
 
-export function CopyButton({ value, title = 'Скопировать', className }: { value: string; title?: string; className?: string }) {
-  const [copied, setCopied] = useState(false);
+          <div className="px-5 py-4">{children}</div>
 
-  const copy = async () => {
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
-      // Clipboard API недоступен без HTTPS — запасной путь через скрытое поле.
-      const area = document.createElement('textarea');
-      area.value = value;
-      area.style.position = 'fixed';
-      area.style.opacity = '0';
-      document.body.append(area);
-      area.select();
-      document.execCommand('copy');
-      area.remove();
-    }
-    setCopied(true);
-    window.setTimeout(() => setCopied(false), 1400);
-  };
-
-  return (
-    <button
-      type="button"
-      onClick={() => void copy()}
-      title={title}
-      className={clsx(
-        'inline-flex size-7 items-center justify-center rounded-md text-ink-500 transition-colors hover:bg-ink-800 hover:text-ink-100',
-        className,
-      )}
-    >
-      {copied ? <Check className="size-3.5 text-ok-400" /> : <Copy className="size-3.5" />}
-    </button>
+          {footer ? (
+            <footer className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-card px-5 py-3.5">
+              {footer}
+            </footer>
+          ) : null}
+        </RxDialog.Content>
+      </RxDialog.Portal>
+    </RxDialog.Root>
   );
 }
 
@@ -337,7 +457,42 @@ export function ConfirmDialog({
         </>
       }
     >
-      <p className="text-sm leading-relaxed text-ink-300">{message}</p>
+      <p className="text-sm leading-relaxed text-muted-foreground">{message}</p>
     </Modal>
+  );
+}
+
+export function CopyButton({ value, title = 'Скопировать', className }: { value: string; title?: string; className?: string }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // Clipboard API недоступен вне защищённого контекста — запасной путь.
+      const area = document.createElement('textarea');
+      area.value = value;
+      area.style.position = 'fixed';
+      area.style.opacity = '0';
+      document.body.append(area);
+      area.select();
+      document.execCommand('copy');
+      area.remove();
+    }
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1400);
+  };
+
+  return (
+    <Button
+      variant="ghost"
+      size="iconSm"
+      onClick={() => void copy()}
+      title={title}
+      aria-label={title}
+      className={className}
+    >
+      {copied ? <Check className="size-3.5 text-success" /> : <Copy className="size-3.5" />}
+    </Button>
   );
 }
